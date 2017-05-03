@@ -7,7 +7,9 @@ import glob
 # To open the image in an external window use %matplotlib qt
 # %matplotlib inline
 
-
+# Import everything needed to edit/save/watch video clips
+from moviepy.editor import VideoFileClip
+from IPython.display import HTML
 
 # Camera calibration
 def calibrate_camera(path):
@@ -67,19 +69,9 @@ def calibrate_camera(path):
     return ret, mtx, dist, rvecs, tvecs
 
 # Undistort images
-def undistorted_images(path):
-    # Read in the test images
-    images = glob.glob(path)
-    undist_images = []
-    for file_name in images:
-        # Read in each image
-        img = mpimg.imread(file_name)
-        # Undistort each image
-        undist = cv2.undistort(img, mtx, dist, None, mtx)
-        # Append to the undistorted images array
-        undist_images.append(undist)
-
-    return undist_images
+def undistort_image(img, mtx, dist):
+    undist = cv2.undistort(img, mtx, dist, None, mtx)
+    return undist
 
 # Define the trapezoid form - region of interest
 def trapezoid_offset_sizes(image):
@@ -334,7 +326,7 @@ def skip_sliding_window_search(combined_binary):
 
     return result, ploty, left_fitx, right_fitx
 
-def draw_detected_lane_lines(combined_binary, image, left_fitx, right_fitx, ploty):
+def draw_detected_lane_lines(combined_binary, image, left_fitx, right_fitx, ploty, Minv):
     # Create an image to draw the lines on
     warped = combined_binary
     warp_zero = np.zeros_like(warped).astype(np.uint8)
@@ -351,26 +343,20 @@ def draw_detected_lane_lines(combined_binary, image, left_fitx, right_fitx, plot
     # Draw the lane lines
     cv2.polylines(color_warp, np.int32([pts_left]), isClosed=False, color=(255,0,255), thickness=15)
     cv2.polylines(color_warp, np.int32([pts_right]), isClosed=False, color=(0,255,255), thickness=15)
-    
+
     # Warp the blank back to original image space using inverse perspective matrix (Minv)
     newwarp = cv2.warpPerspective(color_warp, Minv, (image.shape[1], image.shape[0]))
     # Combine the result with the original image
-    result = cv2.addWeighted(undist, 1, newwarp, 0.3, 0)
+    result = cv2.addWeighted(image, 1, newwarp, 0.3, 0)
 
     return result
 
-# Calibrate the camera
-ret, mtx, dist, rvecs, tvecs = calibrate_camera('camera_cal/calibration*.jpg')
+def process_image(image):
+    # Undistort the image
+    image = undistort_image(image, mtx, dist)
 
-# Undistort the images
-undist_images = undistorted_images('test_images/*.jpg')
-# undist = undist_images[0] # Just for testing
-path = "output_images/image"
-extension = ".jpg"
-i = 0
-for undist in undist_images:
     # Perform perspective transformation
-    warped_im, Minv = warp(undist)
+    warped_im, Minv = warp(image)
 
     # Perform color and gradients thresholding
     combined_binary, color_binary = hls_sobel_x_gradient(warped_im)
@@ -383,7 +369,47 @@ for undist in undist_images:
     # out_img, ploty, left_fitx, right_fitx = skip_sliding_window_search(combined_binary)
 
     # It's now ready to draw the detected lane lines on the original image
-    img = draw_detected_lane_lines(combined_binary, undist, left_fitx, right_fitx, ploty)
+    img = draw_detected_lane_lines(combined_binary, image, left_fitx, right_fitx, ploty, Minv)
 
-    mpimg.imsave(path+str(i)+extension,img)
-    i = i+1
+    return img
+
+def detect_lanes_on_images(distorted_images_path, output_path):
+    images = glob.glob(distorted_images_path)
+    path = output_path+"image"
+    extension = ".jpg"
+    i = 0
+    for file_name in images:
+        image = mpimg.imread(file_name)
+        # Perform perspective transform, color transform, gradient thresholding
+        # Sliding window search and draw the detected lane
+        processed_image = process_image(image)
+        # Save the resulting image to file
+        mpimg.imsave(path+str(i)+extension,processed_image)
+        i = i+1
+
+def detect_lanes_on_video(video_path, output_path):
+    output = output_path
+    clip = VideoFileClip(video_path)
+
+    output_clip = clip.fl_image(process_image)
+    output_clip.write_videofile(output, audio=False)
+
+def save_undistorted_chessboard_image():
+    # Save an undistorted chessboard image to file
+    # Read in the image
+    img = mpimg.imread('camera_cal/calibration1.jpg')
+    # Undistort the image
+    chessboard_undistorted = cv2.undistort(img, mtx, dist, None, mtx)
+    # Save the undistorted image to file
+    mpimg.imsave('output_images/undistored_chessboard.jpg', chessboard_undistorted)
+
+# Calibrate the camera
+ret, mtx, dist, rvecs, tvecs = calibrate_camera('camera_cal/calibration*.jpg')
+
+# Detect the lane lines on the images located in the folder 'test_images/'
+# and save the results to the folder 'output_images/'
+# detect_lanes_on_images('test_images/*.jpg', 'output_images/')
+
+#Detect the lane lines on the video 'project_video.mp4' located in the same folder as this script
+# and save the result to the file 'project.mp4'
+detect_lanes_on_video('harder_challenge_video.mp4','harder_challenge.mp4')
