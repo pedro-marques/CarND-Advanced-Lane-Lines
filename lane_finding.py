@@ -194,6 +194,40 @@ def hls_sobel_x_gradient(warped_image):
 
     return combined_binary, color_binary
 
+def hls_lab_threshold(warped_image, hls_thresh=(220, 255), lab_thresh=(190,255)):
+    # HLS
+
+    # Convert to HLS color space
+    hls = cv2.cvtColor(warped_image, cv2.COLOR_RGB2HLS)
+    hls_l = hls[:,:,1]
+    hls_l = hls_l*(255/np.max(hls_l))
+    # Apply a threshold to the L channel
+    hls_binary_output = np.zeros_like(hls_l)
+    hls_binary_output[(hls_l > hls_thresh[0]) & (hls_l <= hls_thresh[1])] = 1
+
+    # LAB
+
+    # Convert to LAB color space
+    lab = cv2.cvtColor(warped_image, cv2.COLOR_RGB2Lab)
+    lab_b = lab[:,:,2]
+    # don't normalize if there are no yellows in the image
+    if np.max(lab_b) > 175:
+        lab_b = lab_b*(255/np.max(lab_b))
+    # Apply a threshold to the B channel
+    lab_binary_output = np.zeros_like(lab_b)
+    lab_binary_output[((lab_b > lab_thresh[0]) & (lab_b <= lab_thresh[1]))] = 1
+
+    # Combined
+
+    # Combine HLS and Lab B channel thresholds
+    combined_hls_lab_b = np.zeros_like(lab_binary_output)
+    combined_hls_lab_b[(hls_binary_output == 1) | (lab_binary_output == 1)] = 1
+
+    combined_binary = combined_hls_lab_b
+
+    return combined_binary
+
+#
 def sliding_window_search(combined_binary):
 
     # To decide explicitly which pixels are part of the lines
@@ -274,7 +308,7 @@ def sliding_window_search(combined_binary):
     out_img[nonzeroy[left_lane_inds], nonzerox[left_lane_inds]] = [255, 0, 0]
     out_img[nonzeroy[right_lane_inds], nonzerox[right_lane_inds]] = [0, 0, 255]
 
-    return out_img, ploty, left_fitx, right_fitx
+    return out_img, ploty, left_fitx, right_fitx, leftx, rightx
 
 # Skip sliding window search
 def skip_sliding_window_search(combined_binary):
@@ -326,6 +360,50 @@ def skip_sliding_window_search(combined_binary):
 
     return result, ploty, left_fitx, right_fitx
 
+# Calculate the radius of the curvature
+def calculate_curvature_radius(combined_binary, ploty, leftx, rightx):
+    h = combined_binary.shape[0]
+    ploty = np.linspace(0, h-1, h)
+
+    leftx = leftx[::-1]  # Reverse to match top-to-bottom in y
+    rightx = rightx[::-1]  # Reverse to match top-to-bottom in y
+
+    # Fit a second order polynomial to pixel positions in each fake lane line
+    left_fit = np.polyfit(ploty, leftx, 2)
+    left_fitx = left_fit[0]*ploty**2 + left_fit[1]*ploty + left_fit[2]
+    right_fit = np.polyfit(ploty, rightx, 2)
+    right_fitx = right_fit[0]*ploty**2 + right_fit[1]*ploty + right_fit[2]
+
+    # Define y-value where we want radius of curvature
+    # I'll choose the maximum y-value, corresponding to the bottom of the image
+    y_eval = np.max(ploty)
+    left_curverad = ((1 + (2*left_fit[0]*y_eval + left_fit[1])**2)**1.5) / np.absolute(2*left_fit[0])
+    right_curverad = ((1 + (2*right_fit[0]*y_eval + right_fit[1])**2)**1.5) / np.absolute(2*right_fit[0])
+    #print(left_curverad, right_curverad)
+
+    # Define conversions in x and y from pixels space to meters
+    ym_per_pix = 3.048/100 # meters per pixel in y dimension
+    xm_per_pix = 3.7/378 # meters per pixel in x dimension
+
+    # Fit new polynomials to x,y in world space
+    left_fit_cr = np.polyfit(ploty*ym_per_pix, leftx*xm_per_pix, 2)
+    right_fit_cr = np.polyfit(ploty*ym_per_pix, rightx*xm_per_pix, 2)
+    # Calculate the new radii of curvature
+    left_curverad = ((1 + (2*left_fit_cr[0]*y_eval*ym_per_pix + left_fit_cr[1])**2)**1.5) / np.absolute(2*left_fit_cr[0])
+    right_curverad = ((1 + (2*right_fit_cr[0]*y_eval*ym_per_pix + right_fit_cr[1])**2)**1.5) / np.absolute(2*right_fit_cr[0])
+    # Now our radius of curvature is in meters
+    print(left_curverad, 'm', right_curverad, 'm')
+
+    # Distance from center is image x midpoint - mean of left_fit and right_fit intercepts
+    if right_fit is not None and left_fit is not None:
+        car_position = combined_binary[1]/2
+        left_fit_x_int = left_fit[0]*h**2 + left_fit[1]*h + left_fit[2]
+        right_fit_x_int = right_fit[0]*h**2 + right_fit[1]*h + right_fit[2]
+        lane_center_position = (right_fit_x_int + left_fit_x_int) /2
+        center_dist = (car_position - lane_center_position) * xm_per_pix
+
+    return left_curverad, right_curverad, center_dist
+
 def draw_detected_lane_lines(combined_binary, image, left_fitx, right_fitx, ploty, Minv):
     # Create an image to draw the lines on
     warped = combined_binary
@@ -351,6 +429,26 @@ def draw_detected_lane_lines(combined_binary, image, left_fitx, right_fitx, plot
 
     return result
 
+# Draw the curvature radius and distance of the car from the center of the lane on to the image with the lane
+# lines detected
+def draw_curvature_radius_information(lane_detected_image, left_curverad, right_curverad, distance_from_center):
+    new_img = np.copy(lane_detected_image)
+    h = new_img.shape[0]
+    font = cv2.FONT_HERSHEY_DUPLEX
+    curv_radius = left_curverad + right_curverad
+    text = 'Curve radius: ' + '{:04.2f}'.format(curv_radius) + 'm'
+    cv2.putText(new_img, text, (40,70), font, 1.5, (200,255,155), 2, cv2.LINE_AA)
+    direction = ''
+    if distance_from_center > 0:
+        direction = 'right'
+    elif distance_from_center < 0:
+        direction = 'left'
+    abs_center_dist = abs(distance_from_center)
+    text = '{:04.3f}'.format(abs_center_dist) + 'm ' + direction + ' of center'
+    cv2.putText(new_img, text, (40,120), font, 1.5, (200,255,155), 2, cv2.LINE_AA)
+
+    return new_img
+
 def process_image(image):
     # Undistort the image
     image = undistort_image(image, mtx, dist)
@@ -359,17 +457,28 @@ def process_image(image):
     warped_im, Minv = warp(image)
 
     # Perform color and gradients thresholding
-    combined_binary, color_binary = hls_sobel_x_gradient(warped_im)
+
+    # HLS and Sobelx Gradient combined
+    #combined_binary, color_binary = hls_sobel_x_gradient(warped_im)
+
+    # HLS and LAB thresholding combined
+    combined_binary = hls_lab_threshold(warped_im)
 
     # Perform the sliding window search when unsure
-    out_img, ploty, left_fitx, right_fitx = sliding_window_search(combined_binary)
+    out_img, ploty, left_fitx, right_fitx, leftx, rightx = sliding_window_search(combined_binary)
+
+    # Calculate the radius of the curvature
+    left_curverad, right_curverad, distance_from_center = calculate_curvature_radius(combined_binary, ploty, leftx, rightx)
 
     # NEED TO ARRANGE THIS IN A BETTER FASHION
     # If you are pretty sure where that the sliding window search is working good, you can skip it for the next frame
     # out_img, ploty, left_fitx, right_fitx = skip_sliding_window_search(combined_binary)
 
-    # It's now ready to draw the detected lane lines on the original image
+    # It's now ready to draw the detected lane lines on the original undistorted image
     img = draw_detected_lane_lines(combined_binary, image, left_fitx, right_fitx, ploty, Minv)
+
+    # And finally draw the radius of the curvature and the distance of the car from the center
+    #img = draw_curvature_radius_information(img, left_curverad, right_curverad, distance_from_center)
 
     return img
 
@@ -406,10 +515,21 @@ def save_undistorted_chessboard_image():
 # Calibrate the camera
 ret, mtx, dist, rvecs, tvecs = calibrate_camera('camera_cal/calibration*.jpg')
 
+# Save undistorted chessboard image
+#save_undistorted_chessboard_image()
+
 # Detect the lane lines on the images located in the folder 'test_images/'
 # and save the results to the folder 'output_images/'
-# detect_lanes_on_images('test_images/*.jpg', 'output_images/')
+#detect_lanes_on_images('test_images/*.jpg', 'output_images/')
 
 #Detect the lane lines on the video 'project_video.mp4' located in the same folder as this script
 # and save the result to the file 'project.mp4'
+#detect_lanes_on_video('project_video.mp4','project.mp4')
+
+#Detect the lane lines on the video 'challenge_video.mp4' located in the same folder as this script
+# and save the result to the file 'challenge.mp4'
+#detect_lanes_on_video('challenge_video.mp4','challenge.mp4')
+
+#Detect the lane lines on the video 'harder_challenge_video.mp4' located in the same folder as this script
+# and save the result to the file 'harder_challenge.mp4'
 detect_lanes_on_video('harder_challenge_video.mp4','harder_challenge.mp4')
