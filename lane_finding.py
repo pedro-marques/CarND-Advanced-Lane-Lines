@@ -299,8 +299,11 @@ def sliding_window_search(combined_binary):
     righty = nonzeroy[right_lane_inds]
 
     # Fit a second order polynomial to each
-    left_fit = np.polyfit(lefty, leftx, 2)
-    right_fit = np.polyfit(righty, rightx, 2)
+    left_fit, right_fit = [[0,0,0], [0,0,0]]
+    if len(leftx) != 0 and len(rightx) != 0:
+        left_fit = np.polyfit(lefty, leftx, 2)
+        right_fit = np.polyfit(righty, rightx, 2)
+        #print(left_fit)
 
     # Generate x and y values for plotting
     ploty = np.linspace(0, combined_binary.shape[0]-1, combined_binary.shape[0] )
@@ -311,7 +314,7 @@ def sliding_window_search(combined_binary):
     out_img[nonzeroy[right_lane_inds], nonzerox[right_lane_inds]] = [0, 0, 255]
 
     #return out_img, ploty, left_fitx, right_fitx, left_fit, right_fit, left_lane_inds, right_lane_inds
-    return out_img, ploty, left_fitx, right_fitx, left_fit, right_fit, leftx, rightx, lefty, righty
+    return out_img, ploty, left_fitx, right_fitx, left_fit, right_fit
 
 # Skip sliding window search
 def skip_sliding_window_search(combined_binary):
@@ -333,8 +336,10 @@ def skip_sliding_window_search(combined_binary):
     rightx = nonzerox[right_lane_inds]
     righty = nonzeroy[right_lane_inds]
     # Fit a second order polynomial to each
-    left_fit = np.polyfit(lefty, leftx, 2)
-    right_fit = np.polyfit(righty, rightx, 2)
+    left_fit, right_fit = [[0,0,0], [0,0,0]]
+    if len(leftx) != 0 and len(rightx) != 0:
+        left_fit = np.polyfit(lefty, leftx, 2)
+        right_fit = np.polyfit(righty, rightx, 2)
     # Generate x and y values for plotting
     ploty = np.linspace(0, binary_warped.shape[0]-1, binary_warped.shape[0] )
     left_fitx = left_fit[0]*ploty**2 + left_fit[1]*ploty + left_fit[2]
@@ -390,6 +395,43 @@ def calculate_curvature_radius(combined_binary, ploty, left_fit, right_fit, left
 
     #print(center_dist)
     return left_curverad, right_curverad, center_dist
+
+def calculate_curvature_radius2(combined_binary, ploty, left_fit, right_fit):
+
+    height = combined_binary.shape[0]
+    # meters per pixel in y dimension
+    ym_per_pix = 30/height
+    # meters per pixel in x dimension
+    xm_per_pix = 3.7/700
+
+    y_points = np.linspace(0, height-1, height)
+    y_real_world = y_points*ym_per_pix
+    y_eval = np.max(y_real_world)
+
+    # Left line
+    x_points_left = left_fit[0]*y_points**2 + left_fit[1]*y_points + left_fit[2]
+    x_real_world_left = x_points_left*xm_per_pix
+
+    # Right Line
+    x_points_right = right_fit[0]*y_points**2 + right_fit[1]*y_points + right_fit[2]
+    x_real_world_right = x_points_right*xm_per_pix
+
+    # Fit polynomial using the real world values
+    fit_cr_left = np.polyfit(y_real_world, x_real_world_left, 2)
+    fit_cr_right = np.polyfit(y_real_world, x_real_world_right, 2)
+
+    # Curvature computation
+    curverad_left = ((1 + (2*fit_cr_left[0]*y_eval+ fit_cr_left[1])**2)**1.5) / np.absolute(2*fit_cr_left[0])
+    curverad_right = ((1 + (2*fit_cr_right[0]*y_eval+ fit_cr_right[1])**2)**1.5) / np.absolute(2*fit_cr_right[0])
+
+    # Calculate distance from center
+    car_position = combined_binary.shape[1]/2
+    left_fit_x_int = left_fit[0]*height**2 + left_fit[1]*height + left_fit[2]
+    right_fit_x_int = right_fit[0]*height**2 + right_fit[1]*height + right_fit[2]
+    lane_center_position = (right_fit_x_int + left_fit_x_int) /2
+    distance_from_center = (car_position - lane_center_position) * xm_per_pix
+
+    return curverad_left, curverad_right, distance_from_center
 
 def draw_detected_lane_lines(combined_binary, image, left_fitx, right_fitx, ploty, Minv):
     # Create an image to draw the lines on
@@ -454,7 +496,7 @@ def process_image(image):
     combined_binary = hls_lab_threshold(warped_im)
 
     # Perform the sliding window search when unsure
-    out_img, ploty, left_fitx, right_fitx, left_fit, right_fit, leftx, rightx, lefty, righty = sliding_window_search(combined_binary)
+    out_img, ploty, left_fitx, right_fitx, left_fit, right_fit = sliding_window_search(combined_binary)
     #out_img, ploty, left_fitx, right_fitx, left_fit, right_fit, left_lane_inds, right_lane_inds = sliding_window_search(combined_binary)
 
     # NEED TO ARRANGE THIS IN A BETTER FASHION
@@ -465,9 +507,9 @@ def process_image(image):
     img = draw_detected_lane_lines(combined_binary, image, left_fitx, right_fitx, ploty, Minv)
 
     # Calculate the radius of the curvature
-    left_curverad, right_curverad, distance_from_center = calculate_curvature_radius(combined_binary, ploty, left_fit, right_fit, leftx, rightx, lefty, righty)
+    #left_curverad, right_curverad, distance_from_center = calculate_curvature_radius(combined_binary, ploty, left_fit, right_fit, leftx, rightx, lefty, righty)
     #left_curverad, right_curverad, distance_from_center = calc_curv_rad_and_center_dist(combined_binary, left_fit, right_fit, left_lane_inds, right_lane_inds )
-
+    left_curverad, right_curverad, distance_from_center = calculate_curvature_radius2(combined_binary, ploty, left_fit, right_fit)
     # And finally draw the radius of the curvature and the distance of the car from the center
     img = draw_curvature_radius_information(img, left_curverad, right_curverad, distance_from_center)
 
@@ -482,8 +524,8 @@ def detect_lanes_on_images(distorted_images_path, output_path):
         image = mpimg.imread(file_name)
         # Perform perspective transform, color transform, gradient thresholding
         # Sliding window search and draw the detected lane
-        #left_line = line.Line()
-        #right_line = line.Line()
+        left_line = line.Line()
+        right_line = line.Line()
         processed_image = process_image(image)
         # Save the resulting image to file
         mpimg.imsave(path+str(i)+extension,processed_image)
@@ -494,8 +536,8 @@ def detect_lanes_on_video(video_path, output_path):
     clip = VideoFileClip(video_path)
     # Perform perspective transform, color transform, gradient thresholding
     # Sliding window search and draw the detected lane
-    #left_line = line.Line()
-    #right_line = line.Line()
+    left_line = line.Line()
+    right_line = line.Line()
     output_clip = clip.fl_image(process_image)
     output_clip.write_videofile(output, audio=False)
 
@@ -516,15 +558,15 @@ ret, mtx, dist, rvecs, tvecs = calibrate_camera('camera_cal/calibration*.jpg')
 
 # Detect the lane lines on the images located in the folder 'test_images/'
 # and save the results to the folder 'output_images/'
-detect_lanes_on_images('test_images/*.jpg', 'output_images/')
+#detect_lanes_on_images('test_images/*.jpg', 'output_images/')
 
 #Detect the lane lines on the video 'project_video.mp4' located in the same folder as this script
 # and save the result to the file 'project.mp4'
-detect_lanes_on_video('project_video.mp4','project.mp4')
+#detect_lanes_on_video('project_video.mp4','project.mp4')
 
 #Detect the lane lines on the video 'challenge_video.mp4' located in the same folder as this script
 # and save the result to the file 'challenge.mp4'
-#detect_lanes_on_video('challenge_video.mp4','challenge.mp4')
+detect_lanes_on_video('challenge_video.mp4','challenge.mp4')
 
 #Detect the lane lines on the video 'harder_challenge_video.mp4' located in the same folder as this script
 # and save the result to the file 'harder_challenge.mp4'
