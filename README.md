@@ -26,7 +26,7 @@ The goals / steps of this project are the following:
 [image4]: ./output_images/combined_binary.png "Binary Example"
 [image5]: ./output_images/undistorted_and_warped.png "Warp Example"
 [image6]: ./output_images/sliding_window.png "Fit Visual"
-[image7]: ./output_images/image3 "Output"
+[image7]: ./output_images/image3.jpg "Output"
 [video1]: ./project.mp4 "Video"
 
 ## [Rubric](https://review.udacity.com/#!/rubrics/571/view) Points
@@ -58,7 +58,11 @@ To demonstrate this step, I will describe how I apply the distortion correction 
 
 #### 2. Describe how (and identify where in your code) you used color transforms, gradients or other methods to create a thresholded binary image.  Provide an example of a binary image result.
 
-I used a combination of color and gradient thresholds to generate a binary image (thresholding steps at lines 199 through 230 in `lane_finding.py`).  Here's an example of my output for this step.
+I used a combination of color and gradient thresholds to generate a binary image (thresholding steps at lines 199 through 230 in `lane_finding.py`).  
+
+I converted the undistorted image to the HLS and LAB color spaces, then applied a threshold to the L channel of the HLS color space and a threshold to the B channel of the LAB color space, then I combined those two thresholds into one binary image.
+
+Here's an example of my output for this step.
 
 ![alt text][image4]
 
@@ -68,9 +72,9 @@ The code for my perspective transform includes a function called `warp()`, which
 
 To perform the perspective transformation I have defined four source points on the image which represent my region of interest, the part of the image that I desire to have a birds-eye view, next I define four destination points in to which I am going to shift the region of interest to, these destination points have to represent a rectangle so that the lane lines are parallel.
 
-The perspective transform matrix is computed by the function getPerspectiveTransform(), I have also computed the inverse matrix by swapping the source and destination points using the same function, so that I could unwarp the image should I need to do so.
+The perspective transform matrix is computed by the function `getPerspectiveTransform()`, I have also computed the inverse matrix by swapping the source and destination points using the same function, so that I could unwarp the image should I need to do so.
 
-Next I applied the transform matrix M to the original image to get the warped image by calling the warpPerspective() function, this function takes in the image, the perspective matrix M, the size we want the warped image to be, and how to interpolate points - fill in missing points as it warps an image.
+Next I applied the transform matrix M to the original image to get the warped image by calling the `warpPerspective()` function, this function takes in the image, the perspective matrix M, the size we want the warped image to be, and how to interpolate points - fill in missing points as it warps an image.
 
 The `warp()` function takes as input only an image (`img`). I chose the hardcode the source and destination points in the following manner:
 
@@ -100,11 +104,9 @@ Here is an image of the original and the transformed images.
 
 #### 4. Describe how (and identify where in your code) you identified lane-line pixels and fit their positions with a polynomial?
 
-To identify the lane-line pixels the approach taken was to convert the undistorted image to the HLS and LAB color spaces, then apply a threshold to the L channel of the HLS color space and a threshold to the B channel of the LAB color space, then I combined those two thresholds into one binary image.
+To identify the lane-lines pixel the approach was to take an histogram of the bottom half of the binary image, on it I would then search for the spikes on the left and right halves of the histogram, those spikes would represent the starting points for the left and right lane-lines respectively.
 
-Next step was to take an histogram of the bottom half of the binary image, on it I would then search for the spikes on the left and right halves of the histogram, those spikes would represent the starting points for the left and right lane-lines respectively.
-
-I have used the sliding window method to find the lane line pixels. The method consists in defining a number of windows, and using the starting points identified previously draw a window fitting the points inside it. On that window I find all the nonzero pixels in x and y, and I repeat that process moving each window upwards, and to adjust on the x axis (because the lines may curve) I verify if the number of pixels found on the left or right line are higher than a certain number of pixels (50 in this case), if so then I recenter the next window on the mean position of the number of pixels. Next I fit my lane lines with a 2nd order polynomial and I practically have my lane.
+I have used the sliding window method to find the lane line pixels. The method consists in defining a number of windows, and using the starting points identified previously to draw a window fitting the points inside it. On that window I find all the non zero pixels in x and y, and I repeat that process moving each window upwards, and to adjust on the x axis (because the lines may curve) I verify if the number of pixels found on the left or right line are higher than a certain number of pixels (50 in this case), if so then I recenter the next window on the mean position of the number of pixels. Next I fit my lane lines with a 2nd order polynomial and I practically have my lane.
 
 You can find the code in lines 233 through 317 in `lane_finding.py`.
 
@@ -137,8 +139,8 @@ Here's a [link to my video result](./project.mp4)
 
 #### 1. Briefly discuss any problems / issues you faced in your implementation of this project.  Where will your pipeline likely fail?  What could you do to make it more robust?
 
-I am really sad I did not manage to implement the Line class on my project, I did try to do it but I just could not get it to work, as a result my pipeline fails on the two challenge videos, where there is a lot more noise on the thresholded images (shadows and such).
+I am really sad I did not manage to implement the `Line()` class on my project, I did try to do it but I just could not get it to work, as a result my pipeline fails on the two challenge videos, where there is a lot more noise on the thresholded images (shadows and such).
 
 I think color, gradient thresholding and the perspective transformation are crucial for the success of this project, I did not feel the effect of the undistort method on these test images, but I get why we do it, it's good to do it as rule because in case we get images that need to be undistorted we already know how to do it and that we should do it.
 
-As I could not implement the Line class I was left wondering, the same color and gradient thresholding combination does not work well for all occasions and other combinations work better for certain images, so maybe having the pipeline switch between color and gradient thresholding combinations depending on the number of spikes the histogram has could be an idea, I have not tried it really.
+As I could not implement the `Line()` class I was left wondering, the same color and gradient thresholding combination does not work well for all occasions and other combinations work better for certain images, so maybe having the pipeline switch between color and gradient thresholding combinations depending on the number of spikes the histogram has could be an idea, I have not tried it really.
