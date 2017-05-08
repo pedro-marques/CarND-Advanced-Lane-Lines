@@ -530,7 +530,7 @@ def save_undistorted_chessboard_image():
 ret, mtx, dist, rvecs, tvecs = calibrate_camera('camera_cal/calibration*.jpg')
 
 # Save undistorted chessboard image
-#save_undistorted_chessboard_image()
+save_undistorted_chessboard_image()
 
 # Detect the lane lines on the images located in the folder 'test_images/'
 # and save the results to the folder 'output_images/'
