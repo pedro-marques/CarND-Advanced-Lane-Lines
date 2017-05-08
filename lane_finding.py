@@ -369,33 +369,6 @@ def skip_sliding_window_search(combined_binary):
     return result, ploty, left_fitx, right_fitx
 
 # Calculate the radius of the curvature
-def calculate_curvature_radius(combined_binary, ploty, left_fit, right_fit, leftx, rightx, lefty, righty):
-    # Define conversions in x and y from pixels space to meters
-    ym_per_pix = 3.048/100 # meters per pixel in y dimension
-    xm_per_pix = 3.7/378 # meters per pixel in x dimension
-    y_eval = np.max(ploty)
-    height = combined_binary.shape[0]
-
-    if len(leftx) != 0 and len(rightx) != 0:
-        # Fit new polynomials to x,y in world space
-        left_fit_cr = np.polyfit(lefty*ym_per_pix, leftx*xm_per_pix, 2)
-        right_fit_cr = np.polyfit(righty*ym_per_pix, rightx*xm_per_pix, 2)
-        # Calculate the new radii of curvature
-        left_curverad = ((1 + (2*left_fit_cr[0]*y_eval*ym_per_pix + left_fit_cr[1])**2)**1.5) / np.absolute(2*left_fit_cr[0])
-        right_curverad = ((1 + (2*right_fit_cr[0]*y_eval*ym_per_pix + right_fit_cr[1])**2)**1.5) / np.absolute(2*right_fit_cr[0])
-        # Now our radius of curvature is in meters
-
-    # Distance from center is image x midpoint - mean of l_fit and r_fit intercepts
-    if right_fit is not None and left_fit is not None:
-        car_position = combined_binary.shape[1]/2
-        left_fit_x_int = left_fit[0]*height**2 + left_fit[1]*height + left_fit[2]
-        right_fit_x_int = right_fit[0]*height**2 + right_fit[1]*height + right_fit[2]
-        lane_center_position = (right_fit_x_int + left_fit_x_int) /2
-        center_dist = (car_position - lane_center_position) * xm_per_pix
-
-    #print(center_dist)
-    return left_curverad, right_curverad, center_dist
-
 def calculate_curvature_radius2(combined_binary, ploty, left_fit, right_fit):
 
     height = combined_binary.shape[0]
@@ -425,11 +398,14 @@ def calculate_curvature_radius2(combined_binary, ploty, left_fit, right_fit):
     curverad_right = ((1 + (2*fit_cr_right[0]*y_eval+ fit_cr_right[1])**2)**1.5) / np.absolute(2*fit_cr_right[0])
 
     # Calculate distance from center
-    car_position = combined_binary.shape[1]/2
+    vehicle_position = combined_binary.shape[1]/2
+
     left_fit_x_int = left_fit[0]*height**2 + left_fit[1]*height + left_fit[2]
     right_fit_x_int = right_fit[0]*height**2 + right_fit[1]*height + right_fit[2]
+
     lane_center_position = (right_fit_x_int + left_fit_x_int) /2
-    distance_from_center = (car_position - lane_center_position) * xm_per_pix
+
+    distance_from_center = (vehicle_position - lane_center_position) * xm_per_pix
 
     return curverad_left, curverad_right, distance_from_center
 
@@ -558,11 +534,11 @@ ret, mtx, dist, rvecs, tvecs = calibrate_camera('camera_cal/calibration*.jpg')
 
 # Detect the lane lines on the images located in the folder 'test_images/'
 # and save the results to the folder 'output_images/'
-#detect_lanes_on_images('test_images/*.jpg', 'output_images/')
+detect_lanes_on_images('test_images/*.jpg', 'output_images/')
 
 #Detect the lane lines on the video 'project_video.mp4' located in the same folder as this script
 # and save the result to the file 'project.mp4'
-#detect_lanes_on_video('project_video.mp4','project.mp4')
+detect_lanes_on_video('project_video.mp4','project.mp4')
 
 #Detect the lane lines on the video 'challenge_video.mp4' located in the same folder as this script
 # and save the result to the file 'challenge.mp4'
@@ -570,4 +546,4 @@ detect_lanes_on_video('challenge_video.mp4','challenge.mp4')
 
 #Detect the lane lines on the video 'harder_challenge_video.mp4' located in the same folder as this script
 # and save the result to the file 'harder_challenge.mp4'
-#detect_lanes_on_video('harder_challenge_video.mp4','harder_challenge.mp4')
+detect_lanes_on_video('harder_challenge_video.mp4','harder_challenge.mp4')
