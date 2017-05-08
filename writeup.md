@@ -1,3 +1,6 @@
+## Advanced Lane Finding
+[![Udacity - Self-Driving Car NanoDegree](https://s3.amazonaws.com/udacity-sdc/github/shield-carnd.svg)](http://www.udacity.com/drive)
+
 ## Writeup Pedro Marques
 
 ---
@@ -22,7 +25,7 @@ The goals / steps of this project are the following:
 [image3]: ./output_images/undistorted_and_warped.png "Road Transformed"
 [image4]: ./output_images/combined_binary.png "Binary Example"
 [image5]: ./output_images/undistorted_and_warped.png "Warp Example"
-[image6]: ./examples/color_fit_lines.jpg "Fit Visual"
+[image6]: ./output_images/sliding_window.png "Fit Visual"
 [image7]: ./output_images/image3 "Output"
 [video1]: ./project.mp4 "Video"
 
@@ -97,7 +100,11 @@ Here is an image of the original and the transformed images.
 
 #### 4. Describe how (and identify where in your code) you identified lane-line pixels and fit their positions with a polynomial?
 
-To identify the lane-line pixels the approach taken was to take an histogram of the bottom half of the binary image, on it I would then search for the spikes on the left and right halves of the histogram, those spikes would represent the starting points for the left and right lane-lines respectively. I have used the sliding window method to find the lane line pixels. The method consists in defining a number of windows, using the starting points identified previously I draw a window fitting the points inside it. On that window I find all the nonzero nonzero pixels in x and y, and I repeat that process moving each window upwards, and to adjust on x axis (because the lines may curve) I verify if the number of pixels found on the left or right line are higher than a certain number of pixels (50 in this case), if so then I recenter the next window on the mean position of the number of pixels. Next I fit my lane lines with a 2nd order polynomial and I practically have my lines.
+To identify the lane-line pixels the approach taken was to convert the undistorted image to the HLS and LAB color spaces, then apply a threshold to the L channel of the HLS color space and a threshold to the B channel of the LAB color space, then I combined those two thresholds into one binary image.
+
+Next step was to take an histogram of the bottom half of the binary image, on it I would then search for the spikes on the left and right halves of the histogram, those spikes would represent the starting points for the left and right lane-lines respectively.
+
+I have used the sliding window method to find the lane line pixels. The method consists in defining a number of windows, and using the starting points identified previously draw a window fitting the points inside it. On that window I find all the nonzero pixels in x and y, and I repeat that process moving each window upwards, and to adjust on the x axis (because the lines may curve) I verify if the number of pixels found on the left or right line are higher than a certain number of pixels (50 in this case), if so then I recenter the next window on the mean position of the number of pixels. Next I fit my lane lines with a 2nd order polynomial and I practically have my lane.
 
 You can find the code in lines 233 through 317 in `lane_finding.py`.
 
