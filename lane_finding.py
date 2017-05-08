@@ -524,7 +524,7 @@ def save_undistorted_chessboard_image():
     # Undistort the image
     chessboard_undistorted = cv2.undistort(img, mtx, dist, None, mtx)
     # Save the undistorted image to file
-    mpimg.imsave('output_images/undistored_chessboard.jpg', chessboard_undistorted)
+    mpimg.imsave('output_images/undistorted_chessboard.jpg', chessboard_undistorted)
 
 # Calibrate the camera
 ret, mtx, dist, rvecs, tvecs = calibrate_camera('camera_cal/calibration*.jpg')
